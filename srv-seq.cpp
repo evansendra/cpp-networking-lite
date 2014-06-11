@@ -1,5 +1,4 @@
-/* sekvencni varianta serverove casti. Obslouzi jednoho klienta, ostatni zadajici klienti musi cekat
- *
+/* sequential version of server side. It handles just one client, the others must wait
  */
 
 #include <cstdio>
@@ -17,8 +16,8 @@ int openSrvSocket ( const char * name, int port )
    struct addrinfo * ai;
    char portStr[10];
 
-   /* Adresa, kde server posloucha. Podle name se urci typ adresy
-    * (IPv4/6) a jeji binarni podoba
+   /* The address where server listens. It uses 'name' to determine the address type (IPv4/6) and
+    * its binary value.
     */
    snprintf ( portStr, sizeof ( portStr ), "%d", port );
    if ( getaddrinfo ( name, portStr, NULL, &ai ) )
@@ -26,7 +25,7 @@ int openSrvSocket ( const char * name, int port )
       printf ( "addrinfo\n" );
       return -1;
     }
-   /* Otevreni soketu, typ soketu (family) podle navratove hodnoty getaddrinfo,
+   /* Open socket, type of socket (family) by getaddrinfo return value,
     * stream = TCP
     */
    int fd = socket ( ai -> ai_family, SOCK_STREAM, 0 );
@@ -37,7 +36,7 @@ int openSrvSocket ( const char * name, int port )
       return -1;
     }
 
-   /* napojeni soketu na zadane sitove rozhrani
+   /* connect socket with selected network interface
     */
    if ( bind ( fd, ai -> ai_addr, ai -> ai_addrlen ) == -1 )
     {
@@ -47,10 +46,9 @@ int openSrvSocket ( const char * name, int port )
       return -1;
     }
    freeaddrinfo ( ai );
-   /* prepnuti soketu na rezim naslouchani (tedy tento soket nebude vyrizovat
-    * datovou komunikaci, budou po nem pouze chodit pozadavky na pripojeni.
-    * 10 je max velikost fronty cekajicich pozadavku na pripojeni.
-    */
+    /* Switch the socket to listening mode (it will not handle data communication, it will
+    * just handle requests for connection) . 10 is max queue size waiting requests for connection
+   */
    if ( listen ( fd, 10 ) == -1 )
     {
       close ( fd );
@@ -60,7 +58,7 @@ int openSrvSocket ( const char * name, int port )
    return fd;
  }
 
-/* obsluha jednoho klienta (vsechny jeho zpravy)
+/* handling of one client (all of his messages)
  */
 
 void serveClient ( int listenFd )
@@ -74,15 +72,15 @@ void serveClient ( int listenFd )
    while ( 1 )
     {
       int l = read ( dataFd, buffer, sizeof ( buffer ));
-      // nulova delka -> uzavreni spojeni klientem
+      // zero size -> closes client connection
       if ( ! l ) break;
 
-      // prevod mala -> velka a naopak
+       // converts small to big and vice versa
       for ( int i = 0; i < l; i ++ )
        if ( isalpha ( buffer[i] ) )
         buffer[i] ^= 0x20;
       write ( dataFd, buffer, l );
-      // spojeni nebylo ukonceno, jeste mohou prijit dalsi data.
+      // connection was not terminated, expecting another data
     }
    close ( dataFd );
    printf ( "Close connection\n" );
@@ -96,7 +94,7 @@ int main ( void )
     {
       serveClient ( fd );
     }
-   // servery bezi stale, sem se rizeni nikdy nedostane.
+   // servers are still running, the program should never get here.
    close ( fd );
    return 0;
  }

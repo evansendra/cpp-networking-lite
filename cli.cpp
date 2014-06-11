@@ -12,8 +12,8 @@ int openCliSocket ( const char * name, int port )
    struct addrinfo * ai;
    char portStr[10];
 
-   /* Adresa, kde server posloucha. Podle name se urci typ adresy
-    * (IPv4/6) a jeji binarni podoba
+   /* The address where server listens. It uses 'name' to determine the address type (IPv4/6) and
+    * its binary value.
     */
    snprintf ( portStr, sizeof ( portStr ), "%d", port );
    if ( getaddrinfo ( name, portStr, NULL, &ai ) )
@@ -21,7 +21,7 @@ int openCliSocket ( const char * name, int port )
       printf ( "addrinfo\n" );
       return -1;
     }
-   /* Otevreni soketu, typ soketu (family) podle navratove hodnoty getaddrinfo,
+   /* Open socket, type of socket (family) by getaddrinfo return value,
     * stream = TCP
     */
    int fd = socket ( ai -> ai_family, SOCK_STREAM, 0 );
@@ -31,8 +31,8 @@ int openCliSocket ( const char * name, int port )
       printf ( "socket\n" );
       return -1;
     }
-   /* Zadost o spojeni se serverem (ted se teprve zacne komunikovat).
-    * vysledkem je bud otevrene datove spojeni nebo chyba.
+   /* Request to a server connection (now the communication starts)
+    * The result is an opened connection or error.
     */
    if ( connect ( fd, ai -> ai_addr, ai -> ai_addrlen ) == - 1 )
     {
@@ -59,7 +59,7 @@ int main ( int argc, char * argv [] )
 
    int fd = openCliSocket ( "ip6-localhost", 12345 );
 
-   // posilame zadana data, zadany pocet krat
+   // we send selected data, selected amount times
    for ( int i = 0; i < cnt; i ++ )
     {
       char buffer[200];
@@ -69,11 +69,10 @@ int main ( int argc, char * argv [] )
 
       int l = read ( fd, buffer, sizeof ( buffer ) );
       write ( STDOUT_FILENO, buffer, l );
-      // prodleva mezi zaslanymi daty
+      // delay between data sending
       usleep ( delay * 1000 );
     }
-   // uzavreni spojeni klientem. Server zjisti uzavreni spojeni a
-   // uvolni prostredky na sve strane.
+   // close the client connection, server deallocates its memory and other stuff
    close ( fd );
    return 0;
  }

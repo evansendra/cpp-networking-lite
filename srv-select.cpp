@@ -1,5 +1,5 @@
-/* sekvencni reseni, ketre pomoci funkce select vybira aktivni spojeni. Obsluha jenotlivych
- * klientu se (dle pozadavku) strida v case.
+/* sequence solution that's using select function to select an active connection.
+ * Client handling switches in a time.
  */
 #include <cstdio>
 #include <cctype>
@@ -16,8 +16,8 @@ int openSrvSocket ( const char * name, int port )
    struct addrinfo * ai;
    char portStr[10];
 
-   /* Adresa, kde server posloucha. Podle name se urci typ adresy
-    * (IPv4/6) a jeji binarni podoba
+   /* The address where server listens. It uses 'name' to determine the address type (IPv4/6) and
+    * its binary value.
     */
    snprintf ( portStr, sizeof ( portStr ), "%d", port );
    if ( getaddrinfo ( name, portStr, NULL, &ai ) )
@@ -25,7 +25,7 @@ int openSrvSocket ( const char * name, int port )
       printf ( "addrinfo\n" );
       return -1;
     }
-   /* Otevreni soketu, typ soketu (family) podle navratove hodnoty getaddrinfo,
+   /* Open socket, type of socket (family) by getaddrinfo return value,
     * stream = TCP
     */
    int fd = socket ( ai -> ai_family, SOCK_STREAM, 0 );
@@ -36,7 +36,7 @@ int openSrvSocket ( const char * name, int port )
       return -1;
     }
 
-   /* napojeni soketu na zadane sitove rozhrani
+   /* connect socket with selected network interface
     */
    if ( bind ( fd, ai -> ai_addr, ai -> ai_addrlen ) == -1 )
     {
@@ -46,10 +46,10 @@ int openSrvSocket ( const char * name, int port )
       return -1;
     }
    freeaddrinfo ( ai );
-   /* prepnuti soketu na rezim naslouchani (tedy tento soket nebude vyrizovat
-    * datovou komunikaci, budou po nem pouze chodit pozadavky na pripojeni.
-    * 10 je max velikost fronty cekajicich pozadavku na pripojeni.
-    */
+   /* Switch the socket to listening mode (it will not handle data communication, it will
+    * just handle requests for connection) . 10 is max queue size waiting requests for connection
+   */
+
    if ( listen ( fd, 10 ) == -1 )
     {
       close ( fd );
@@ -59,8 +59,7 @@ int openSrvSocket ( const char * name, int port )
    return fd;
  }
 
-/* obsluha jednoho klienta. Vyzvedne (cast) dat zaslanou
- * klientem a zpracuje ji.
+/* handling of one client. Get a part of data from client and process it.
  */
 
 bool serveClient ( int dataFd )
@@ -68,15 +67,15 @@ bool serveClient ( int dataFd )
    char buffer[200];
 
    int l = read ( dataFd, buffer, sizeof ( buffer ));
-   // nulova delka -> uzavreni spojeni klientem
+   // zero size -> closes client connection
    if ( ! l ) return false;
 
-   // prevod mala -> velka a naopak
+   // converts small to big and vice versa
    for ( int i = 0; i < l; i ++ )
     if ( isalpha ( buffer[i] ) )
      buffer[i] ^= 0x20;
    write ( dataFd, buffer, l );
-   // spojeni nebylo ukonceno, jeste mohou prijit dalsi data.
+   // connection was not terminated, expecting another data
    return true;
  }
 
@@ -85,8 +84,8 @@ int main ( void )
    int fd = openSrvSocket ( "ip6-localhost", 12345 );
    if ( fd < 0 ) return 1;
 
-   // seznam soketu, ktere se tykaji serveru
-   // na pocatku pouze soket pro prijem zadosti o spojeni.
+   // list of sockets related to the server
+   // at the beginning there is just one socket for connection requests
    vector<int> sockets;
    sockets . push_back ( fd );
 
@@ -95,7 +94,7 @@ int main ( void )
       fd_set rd;
       int max;
 
-      // vyplnime mnozinu soketu, ktere nas zajimaji
+      // fills the set of sockets that are interesting
       FD_ZERO ( &rd );
       for ( vector<int>::size_type i = 0; i < sockets . size (); i ++ )
        {
@@ -103,20 +102,20 @@ int main ( void )
          if ( i == 0 || sockets[i] > max ) max = sockets[i];
        }
 
-      // cekame, dokud na nejakem ze soketu nejsou k dispozici data
-      // pokud nejsou -> proces bude uspan a nebude zadat o procesorovy cas.
+      // waiting for an empty socket (without data)
+      // if there is on data -> process will sleep and will not need a CPU time.
       int res = select ( max + 1, &rd, NULL, NULL, NULL );
 
       if ( res > 0 )
        {
 
-         // data na soketu sockets[0] -> nove pripojeny klient
+         // data on the socket sockets[0] -> new connected client
          if ( FD_ISSET ( sockets[0], &rd ) )
           {
             struct sockaddr remote;
             socklen_t remoteLen = sizeof ( remote );
-            // vytvorime spojeni k tomuto klientu, accept vraci novy soket, kterym
-            // zasilame data pouze v tomto spojeni
+            // create connection to this client, accept returns a new socket that
+            // we use for sending data in this connection
             int dataFd = accept ( fd, &remote, &remoteLen );
             sockets . push_back ( dataFd );
             printf ( "New connection\n" );
@@ -124,10 +123,10 @@ int main ( void )
          for ( vector<int>::size_type i = 1; i < sockets . size (); i ++ )
           if ( FD_ISSET ( sockets[i], &rd ) )
            {
-             // data na nekterem z datovych soketu -> obslouzit
+             // data on one of the sockets -> handling data
              if ( ! serveClient ( sockets[i] ) )
               {
-                // pokud spojeni skoncilo -> uvolnit prostredky
+                // if the connections is over -> deallocation...
                 printf ( "Close connection\n" );
                 close ( sockets[i] );
                 sockets . erase ( sockets . begin () + i );
@@ -136,7 +135,7 @@ int main ( void )
            }
        }
     }
-   // servery bezi stale, sem se rizeni nikdy nedostane.
+   // servers are still running, the program should never get here.
    close ( fd );
    return 0;
  }
